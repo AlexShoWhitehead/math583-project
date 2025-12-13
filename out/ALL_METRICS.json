@@ -1,0 +1,46 @@
+{
+  "SolvencyRiskModel": {
+    "model_name": "solvency_risk_model",
+    "n_train": 73,
+    "n_test": 19,
+    "roc_auc": 1.0,
+    "pr_auc": 1.0,
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "confusion_matrix": [
+      [
+        11,
+        0
+      ],
+      [
+        0,
+        8
+      ]
+    ],
+    "feature_note": "Numeric middle fields are generic; flags and regime drive data quality and separations.",
+    "timestamp": "2025-12-12T19:47:32.787354Z"
+  },
+  "GrowthOpsModel": {
+    "model_name": "growth_ops_model",
+    "n_train": 192,
+    "n_test": 48,
+    "roc_auc": 1.0,
+    "pr_auc": 1.0,
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "confusion_matrix": [
+      [
+        25,
+        0
+      ],
+      [
+        0,
+        23
+      ]
+    ],
+    "feature_note": "Numeric middle fields are generic; flags and regime drive data quality and separations.",
+    "timestamp": "2025-12-12T19:47:33.359619Z"
+  }
+}
