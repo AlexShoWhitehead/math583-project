@@ -1,0 +1,15 @@
+{
+  "rows_total_labeled": 566,
+  "regime_counts": {
+    "A": 326,
+    "D": 93,
+    "C": 89,
+    "B": 58
+  },
+  "eligible_solvency_count": 92,
+  "eligible_solvency_rate": 0.1625441696113074,
+  "label_balance": {
+    "0": 435,
+    "1": 131
+  }
+}

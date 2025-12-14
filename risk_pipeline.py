@@ -500,11 +500,30 @@ def build_preprocessor(df: pd.DataFrame) -> Tuple[ColumnTransformer, List[str], 
     # Targets and meta to exclude from features
     exclude = {
         "y", "label_raw", "flags_raw", "path", "company_name", "accession",
-        "report_date", "filed_date", "split_date"
+        "report_date", "filed_date", "split_date",
+        "issuer", "cik", "fiscal_year",
+        "trust_score", "eligible_solvency", "n_fields", 
+        'regime', 'form',
+        'flag__SGML_Primary_SEQ1',
+        'flag__MissingH', 'flag__LabelFallback_Tight', 'flag__InlineXBRL',
+        'flag__HProxyIsCashOnly', 'flag__SANITY_FAIL_BS_MISMATCH',
+        'flag__SALVAGE_DerivedE_AminusL', 'flag__HTMLTables_Targeted',
+        'flag__SGML_Primary_HTMLFallback', 'flag__HTML:Pi_Net_Income',
+        'flag__HTML:R_Total_Revenue', 'flag__HTML:Marketable_Securities',
+        'flag__HTML:Operating_Income', 'flag__HTML:E_Total_Equity',
+        'flag__HTML:Cash_CashEquiv', 'flag__DerivedL_AminusE',
+        'flag__PlainXBRL', 'flag__DerivedE_AminusL',
+        'flag__HTML:A_Total_Assets', 'flag__HTML:L_Total_Liabilities',
+        'flag__DerivedL_SumCurrentNoncurrent',
+        'flag__SANITY_DROP_OperatingIncome_OutOfRange',
+        'flag__SGML_NoMatchingType', 'float_tail_0', 'float_tail_1',
+        'split_date'
     }
 
+    print(df.columns)
+
     # Categorical
-    cat_cols = ["issuer", "form", "regime"]
+    cat_cols = []
 
     # Numeric candidates: everything else not excluded
     feature_cols = [c for c in df.columns if c not in exclude]
@@ -617,6 +636,225 @@ def train_and_eval_classifier(
 
     return metrics
 
+# -----------------------------
+# Clustering + 2D latent scatter
+# -----------------------------
+from typing import Sequence
+import random
+import matplotlib.pyplot as plt
+from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import StandardScaler
+# Robust clustering + 2D latent scatter (replacement)
+import os
+import random
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from typing import Sequence, Optional, Dict, Any
+from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import StandardScaler
+
+def cluster_and_plot(
+    train_df: pd.DataFrame,
+    n_clusters: int = 3,
+    latent_method: str = "pca",
+    label_col: str = "y",
+    company_col: str = "issuer",
+    trust_col: Optional[str] = "trust_score",
+    outdir: str = ".",
+    annotate_max: int = 50,
+    random_state: int = 42,
+) -> Optional[Dict[str, Any]]:
+    """
+    Robust clustering on mid_* features and 2D scatter.
+    Returns dict with results, or None if nothing to do.
+    """
+
+    # 0) Basic sanity
+    if train_df is None or train_df.shape[0] == 0:
+        print("cluster_and_plot: input train_df is empty. Skipping.")
+        return None
+
+    # 1) locate mid_ columns
+    mid_cols = [c for c in train_df.columns if c.startswith("mid_")]
+    if not mid_cols:
+        print("cluster_and_plot: no mid_ columns found. Skipping.")
+        return None
+
+    X_mid_df = train_df[mid_cols].copy()
+
+    # 2) drop rows that are entirely NaN across mid_ columns (not usable for clustering)
+    non_allnull_mask = ~X_mid_df.isna().all(axis=1)
+    X_mid_df = X_mid_df.loc[non_allnull_mask]
+    if X_mid_df.shape[0] == 0:
+        print("cluster_and_plot: all mid_ columns are NaN for all rows. Skipping.")
+        return None
+
+    # keep corresponding rows in the original df (for labels, names)
+    train_df_usable = train_df.loc[X_mid_df.index].reset_index(drop=True)
+    X_mid_df = X_mid_df.reset_index(drop=True)
+
+    n_samples = X_mid_df.shape[0]
+    if n_samples == 0:
+        print("cluster_and_plot: 0 usable samples after filtering. Skipping.")
+        return None
+
+    # 3) If n_samples < n_clusters, reduce k
+    if n_samples < n_clusters:
+        old_k = n_clusters
+        n_clusters = max(1, n_samples)
+        print(f"cluster_and_plot: requested n_clusters={old_k} > n_samples={n_samples}; reducing to {n_clusters}.")
+
+    # 4) Impute and scale (SimpleImputer requires at least 1 sample)
+    imp = SimpleImputer(strategy="median")
+    X_imp = imp.fit_transform(X_mid_df)  # now safe because n_samples>=1
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X_imp)
+
+    # 5) Clustering (KMeans)
+    # If n_clusters==1, we can skip KMeans and set cluster 0
+    if n_clusters == 1:
+        clusters = np.zeros(n_samples, dtype=int)
+        kmeans_meta = {"note": "n_clusters==1; clustering skipped."}
+    else:
+        kmeans = KMeans(n_clusters=n_clusters, random_state=random_state, n_init=20)
+        clusters = kmeans.fit_predict(X_scaled)
+        kmeans_meta = {"cluster_centers_shape": kmeans.cluster_centers_.shape}
+
+    # 6) 2D latent embedding
+    if latent_method.lower() == "pca":
+        if n_samples >= 2:
+            pca = PCA(n_components=2, random_state=random_state)
+            X_2d = pca.fit_transform(X_scaled)
+            latent_meta = {
+                "method": "pca",
+                "explained_variance_ratio": pca.explained_variance_ratio_.tolist(),
+            }
+        else:
+            # Single sample: place at origin (0,0)
+            X_2d = np.zeros((n_samples, 2))
+            latent_meta = {"method": "pca", "note": "single sample -> placed at origin"}
+    else:
+        raise ValueError("Only 'pca' latent_method is implemented in this helper.")
+
+    # 7) Build labels and company names
+    y_vals = train_df_usable[label_col].fillna(-1).astype(int).values if label_col in train_df_usable.columns else np.full(n_samples, -1)
+    issuers = train_df_usable[company_col].fillna(train_df_usable.get("issuer", "")).astype(str).values if company_col in train_df_usable.columns else train_df_usable.get("issuer", pd.Series([""]*n_samples)).astype(str).values
+    trust_arr = train_df_usable[trust_col].values if trust_col in train_df_usable.columns else None
+
+    # 8) Plot
+    os.makedirs(outdir, exist_ok=True)
+    cmap = plt.get_cmap("tab10")
+    edge_colors = ["red" if yy == 1 else "navy" if yy == 0 else "gray" for yy in y_vals]
+
+    fig, ax = plt.subplots(figsize=(10, 8))
+    sc = ax.scatter(X_2d[:, 0], X_2d[:, 1], c=clusters, cmap=cmap, s=60, alpha=0.9, linewidths=0.8, edgecolors=edge_colors)
+
+    # cluster legend
+    handles = []
+    for cl in range(int(clusters.max()) + 1):
+        handles.append(
+            plt.Line2D([0], [0], marker="o", color="w", label=f"cluster {cl}",
+                       markerfacecolor=cmap(cl % 10), markersize=8, markeredgecolor="k")
+        )
+    cluster_legend = ax.legend(handles=handles, title="Clusters", bbox_to_anchor=(1.02, 1), loc="upper left")
+    ax.add_artist(cluster_legend)
+
+    # label legend
+    label_handles = [
+        plt.Line2D([0], [0], marker="o", color="w", label="healthy (y=0)",
+                   markerfacecolor="white", markersize=8, markeredgecolor="navy"),
+        plt.Line2D([0], [0], marker="o", color="w", label="risky (y=1)",
+                   markerfacecolor="white", markersize=8, markeredgecolor="red"),
+    ]
+    ax.legend(handles=label_handles, title="Label (edge color)", loc="lower left")
+
+    ax.set_xlabel("Latent dim 1")
+    ax.set_ylabel("Latent dim 2")
+    ax.set_title(f"KMeans ({n_clusters}) on mid_* — PCA 2D (n={n_samples})")
+
+    # annotate top points (by trust if available)
+    if trust_arr is not None:
+        try:
+            idx_sorted = list(pd.Series(trust_arr).fillna(-1).sort_values(ascending=False).index)
+            annotate_idx = idx_sorted[: min(annotate_max, n_samples)]
+        except Exception:
+            annotate_idx = list(range(min(annotate_max, n_samples)))
+    else:
+        rng = random.Random(random_state)
+        annotate_idx = rng.sample(list(range(n_samples)), k=min(annotate_max, n_samples))
+
+    for i in annotate_idx:
+        ax.annotate(issuers[i], (X_2d[i, 0], X_2d[i, 1]), textcoords="offset points", xytext=(4,4), fontsize=7, alpha=0.9)
+
+    fig.tight_layout()
+    fig_path = os.path.join(outdir, f"mid_features_kmeans_2d_k{n_clusters}.png")
+    fig.savefig(fig_path, dpi=200)
+    plt.close(fig)
+
+    result = {
+        "n_points": int(n_samples),
+        "n_clusters": int(n_clusters),
+        "clusters": clusters.tolist(),
+        "kmeans_meta": kmeans_meta,
+        "latent_meta": latent_meta,
+        "figure_path": fig_path,
+    }
+    print(f"cluster_and_plot: wrote plot to {fig_path}")
+    return result
+
+def evaluate_cluster_quality(train_df, clusters, label_col="y"):
+    """
+    Compute purity, NMI, ARI, and cross-tab for cluster quality.
+    """
+    import numpy as np
+    from sklearn.metrics import normalized_mutual_info_score, adjusted_rand_score
+
+    y = train_df[label_col].astype(int).values
+
+    # Purity
+    purity = {}
+    for c in np.unique(clusters):
+        idx = np.where(clusters == c)[0]
+        subset = y[idx]
+        healthy = (subset == 0).sum()
+        risky = (subset == 1).sum()
+        purity[int(c)] = {
+            "n": len(idx),
+            "healthy": int(healthy),
+            "risky": int(risky),
+            "purity": max(healthy, risky) / len(idx),
+        }
+
+    # NMI / ARI
+    nmi = normalized_mutual_info_score(y, clusters)
+    ari = adjusted_rand_score(y, clusters)
+
+    # Crosstab
+    cm = pd.crosstab(clusters, y, rownames=["cluster"], colnames=["label"])
+
+    return {
+        "purity": purity,
+        "nmi": float(nmi),
+        "ari": float(ari),
+        "crosstab": cm
+    }
+
+
+# Example usage (call after you build your train split)
+# e.g. inside main(), after solv_train is computed:
+#
+# try:
+#     r = cluster_and_plot(solv_train, n_clusters=3, outdir=args.outdir)
+#     print("Cluster plot saved to:", r["figure_path"])
+# except Exception as e:
+#     print("Clustering/plotting failed:", e)
+
+
 
 def write_markdown_report(outdir: str, sections: Dict[str, Dict]) -> None:
     lines = []
@@ -678,11 +916,31 @@ def main():
     # Solvency/risk model: STRICT eligibility gate (mostly D, some C filtered out by gate)
     solv_df = df[df["eligible_solvency"] == True].copy()
     # Growth/ops model: allow B + D (and optionally C) but exclude A
-    growth_df = df[df["regime"].isin(["B", "C", "D"])].copy()
+    growth_df = df[df["regime"].isin([ "B", "C", "D"])].copy()
+
+    
 
     # 3) Time splits
     solv_train, solv_test = time_split(solv_df, test_size=args.test_size) if len(solv_df) >= 50 else (solv_df, solv_df.iloc[0:0])
     growth_train, growth_test = time_split(growth_df, test_size=args.test_size) if len(growth_df) >= 50 else (growth_df, growth_df.iloc[0:0])
+
+    print("Running clustering on solvency_train...")
+    r = cluster_and_plot(
+        solv_train,
+        n_clusters=10,
+        outdir=args.outdir,
+    )
+    print("Solvency cluster plot:", r["figure_path"])
+
+
+
+    eval_results = evaluate_cluster_quality(solv_train, r["clusters"])
+    print("Cluster Purity:", eval_results["purity"])
+    print("NMI:", eval_results["nmi"])
+    print("ARI:", eval_results["ari"])
+    print(eval_results["crosstab"])
+
+
 
     # 4) Train models
     metrics = {}
