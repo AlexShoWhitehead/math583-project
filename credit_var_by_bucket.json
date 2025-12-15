@@ -1,0 +1,57 @@
+{
+  "meta": {
+    "n_obligors": 40,
+    "n_sims": 200000,
+    "rho": 0.15,
+    "conf_level": 0.99,
+    "mean_pd_used": 0.47712459447022787,
+    "sum_ead": 40.0,
+    "mean_lgd": 0.45,
+    "segment_col": "predicted_bucket",
+    "segment_values": [
+      "healthy",
+      "risky",
+      "failed"
+    ]
+  },
+  "portfolio": {
+    "EL": 8.588898000000002,
+    "VaR": 15.300000000000004,
+    "CreditVaR": 6.711102000000002,
+    "ES": 15.823990384615389
+  },
+  "by_segment": {
+    "healthy": {
+      "EL": 3.2244615000000003,
+      "VaR": 6.750000000000001,
+      "CreditVaR": 3.5255385000000006,
+      "ES": 7.053837953091685
+    },
+    "risky": {
+      "EL": 2.24420175,
+      "VaR": 4.5,
+      "CreditVaR": 2.25579825,
+      "ES": 4.5
+    },
+    "failed": {
+      "EL": 3.12023475,
+      "VaR": 4.95,
+      "CreditVaR": 1.8297652500000003,
+      "ES": 4.95
+    }
+  },
+  "tail_attribution": {
+    "healthy": {
+      "tail_mean_loss": 7.086418269230771,
+      "tail_share_of_portfolio_loss": 0.44782751360367506
+    },
+    "risky": {
+      "tail_mean_loss": 4.0623317307692295,
+      "tail_share_of_portfolio_loss": 0.2567198053102183
+    },
+    "failed": {
+      "tail_mean_loss": 4.6752403846153845,
+      "tail_share_of_portfolio_loss": 0.2954526810861064
+    }
+  }
+}

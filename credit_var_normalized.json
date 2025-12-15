@@ -1,0 +1,58 @@
+{
+  "meta": {
+    "n_obligors": 40,
+    "n_sims": 200000,
+    "rho": 0.15,
+    "conf_level": 0.99,
+    "mean_pd_used": 0.47712459447022787,
+    "sum_ead": 40.0,
+    "mean_lgd": 0.45,
+    "segment_col": "predicted_bucket"
+  },
+  "portfolio": {
+    "n": 40,
+    "total_EL": 8.588898000000002,
+    "total_VaR": 15.300000000000004,
+    "total_CreditVaR": 6.711102000000002,
+    "total_ES": 15.823990384615389,
+    "per_company_EL": 0.21472245000000004,
+    "per_company_VaR": 0.3825000000000001,
+    "per_company_CreditVaR": 0.16777755000000008,
+    "per_company_ES": 0.39559975961538474
+  },
+  "by_segment": {
+    "healthy": {
+      "n": 19,
+      "total_EL": 3.219923250000001,
+      "total_VaR": 6.750000000000001,
+      "total_CreditVaR": 3.53007675,
+      "total_ES": 7.0586585650853015,
+      "per_company_EL": 0.16946964473684212,
+      "per_company_VaR": 0.3552631578947369,
+      "per_company_CreditVaR": 0.18579351315789477,
+      "per_company_ES": 0.3715083455308054
+    },
+    "risky": {
+      "n": 10,
+      "total_EL": 2.24408475,
+      "total_VaR": 4.5,
+      "total_CreditVaR": 2.25591525,
+      "total_ES": 4.5,
+      "per_company_EL": 0.224408475,
+      "per_company_VaR": 0.45,
+      "per_company_CreditVaR": 0.22559152500000001,
+      "per_company_ES": 0.4500000000000001
+    },
+    "failed": {
+      "n": 11,
+      "total_EL": 3.11668875,
+      "total_VaR": 4.95,
+      "total_CreditVaR": 1.8333112500000004,
+      "total_ES": 4.95,
+      "per_company_EL": 0.2833353409090909,
+      "per_company_VaR": 0.45,
+      "per_company_CreditVaR": 0.1666646590909091,
+      "per_company_ES": 0.45000000000000007
+    }
+  }
+}
